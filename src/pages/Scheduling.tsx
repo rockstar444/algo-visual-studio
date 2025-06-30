@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -238,6 +237,12 @@ const Scheduling = () => {
     setMetrics(calculateMetrics(gantt, processes));
   };
 
+  const handleDynamicPriorityChange = (checked: boolean | "indeterminate") => {
+    if (typeof checked === "boolean") {
+      setDynamicPriority(checked);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white text-black p-8">
       <motion.div
@@ -295,10 +300,10 @@ const Scheduling = () => {
                   <Checkbox 
                     id="dynamic-priority" 
                     checked={dynamicPriority}
-                    onCheckedChange={setDynamicPriority}
+                    onCheckedChange={handleDynamicPriorityChange}
                   />
                   <label htmlFor="dynamic-priority" className="text-sm font-medium">
-                    Enable Dynamic Priority Scheduling
+                    Dynamic Priority (aging)
                   </label>
                 </div>
                 <p>• Processes are executed in the order they arrive</p>
