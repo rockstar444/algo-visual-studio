@@ -20,7 +20,7 @@ const Lexical = () => {
   const tokenTypes = {
     KEYWORD: ['int', 'float', 'char', 'void', 'if', 'else', 'while', 'for', 'return', 'include', 'stdio', 'main'],
     OPERATOR: ['+', '-', '*', '/', '=', '==', '!=', '<', '>', '<=', '>=', '&&', '||', '!'],
-    DELIMITER: [';', ',', '(', ')', '{', '}', '[', ']'],
+    SPECIAL_CHARACTER: [';', ',', '(', ')', '{', '}', '[', ']'],
     IDENTIFIER: /^[a-zA-Z_][a-zA-Z0-9_]*$/,
     NUMBER: /^[0-9]+(\.[0-9]+)?$/,
     STRING: /^".*"$/,
@@ -77,9 +77,9 @@ const Lexical = () => {
             });
             i++;
             column++;
-          } else if (tokenTypes.DELIMITER.includes(char)) {
+          } else if (tokenTypes.SPECIAL_CHARACTER.includes(char)) {
             foundTokens.push({
-              type: 'DELIMITER',
+              type: 'SPECIAL_CHARACTER',
               value: char,
               line: lineIndex + 1,
               column: column + 1
@@ -93,7 +93,7 @@ const Lexical = () => {
             
             while (i < line.length && !/\s/.test(line[i]) && 
                    !tokenTypes.OPERATOR.includes(line[i]) && 
-                   !tokenTypes.DELIMITER.includes(line[i])) {
+                   !tokenTypes.SPECIAL_CHARACTER.includes(line[i])) {
               token += line[i];
               i++;
               column++;
@@ -128,11 +128,16 @@ const Lexical = () => {
     }, 1000);
   };
 
+  const clearTokens = () => {
+    setTokens([]);
+    setSourceCode("");
+  };
+
   const getTokenColor = (type: string) => {
     switch (type) {
       case 'KEYWORD': return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'OPERATOR': return 'bg-red-100 text-red-800 border-red-300';
-      case 'DELIMITER': return 'bg-green-100 text-green-800 border-green-300';
+      case 'SPECIAL_CHARACTER': return 'bg-green-100 text-green-800 border-green-300';
       case 'IDENTIFIER': return 'bg-purple-100 text-purple-800 border-purple-300';
       case 'NUMBER': return 'bg-orange-100 text-orange-800 border-orange-300';
       case 'STRING': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
@@ -154,6 +159,41 @@ const Lexical = () => {
           </Link>
         </div>
 
+        {/* Lexical Analysis Overview */}
+        <div className="border-2 border-black rounded-lg p-6 mb-8">
+          <h2 className="text-2xl font-bold mb-4">About Lexical Analysis</h2>
+          <p className="text-gray-700 mb-4">
+            Lexical analysis is the first phase of compilation that breaks down source code into meaningful tokens. 
+            Each token represents the smallest unit of the programming language.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <h3 className="font-bold mb-2">Token Types:</h3>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• <span className="font-medium text-blue-800">Keywords</span> - Reserved words</li>
+                <li>• <span className="font-medium text-red-800">Operators</span> - Arithmetic & logical</li>
+                <li>• <span className="font-medium text-green-800">Special Characters</span> - Punctuation</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-bold mb-2">More Types:</h3>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• <span className="font-medium text-purple-800">Identifiers</span> - Variable names</li>
+                <li>• <span className="font-medium text-orange-800">Numbers</span> - Numeric literals</li>
+                <li>• <span className="font-medium text-yellow-800">Strings</span> - Text literals</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-bold mb-2">Process:</h3>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Scan character by character</li>
+                <li>• Group into meaningful tokens</li>
+                <li>• Classify each token type</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Input Section */}
           <div className="border-2 border-black rounded-lg p-6">
@@ -168,13 +208,22 @@ const Lexical = () => {
                 rows={15}
               />
               
-              <Button
-                onClick={analyzeCode}
-                disabled={!sourceCode.trim() || isAnalyzing}
-                className="w-full bg-black text-white hover:bg-gray-800 disabled:bg-gray-400"
-              >
-                {isAnalyzing ? "Analyzing..." : "Analyze Code"}
-              </Button>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={analyzeCode}
+                  disabled={!sourceCode.trim() || isAnalyzing}
+                  className="flex-1 bg-black text-white hover:bg-gray-800 disabled:bg-gray-400"
+                >
+                  {isAnalyzing ? "Analyzing..." : "Analyze Code"}
+                </Button>
+                <Button
+                  onClick={clearTokens}
+                  variant="outline"
+                  className="border-black hover:bg-gray-100"
+                >
+                  Clear Tokens
+                </Button>
+              </div>
             </div>
 
             {/* Sample Code Button */}
@@ -225,7 +274,7 @@ int main() {
                       <div className="flex justify-between items-center">
                         <div className="flex items-center space-x-2">
                           <span className="font-bold text-xs px-2 py-1 bg-white rounded">
-                            {token.type}
+                            {token.type.replace('_', ' ')}
                           </span>
                           <span className="font-mono font-bold">
                             {token.value}
@@ -250,7 +299,7 @@ int main() {
                       }, {} as Record<string, number>)
                     ).map(([type, count]) => (
                       <div key={type} className="flex justify-between">
-                        <span>{type}:</span>
+                        <span>{type.replace('_', ' ')}:</span>
                         <span className="font-bold">{count}</span>
                       </div>
                     ))}

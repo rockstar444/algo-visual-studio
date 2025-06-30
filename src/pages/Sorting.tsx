@@ -55,6 +55,88 @@ const Sorting = () => {
     return i + 1;
   };
 
+  const mergeSort = (arr: number[], steps: number[][] = []) => {
+    if (arr.length <= 1) return arr;
+
+    const mid = Math.floor(arr.length / 2);
+    const left = mergeSort(arr.slice(0, mid), steps);
+    const right = mergeSort(arr.slice(mid), steps);
+
+    return merge(left, right, steps);
+  };
+
+  const merge = (left: number[], right: number[], steps: number[][]) => {
+    const result: number[] = [];
+    let leftIndex = 0;
+    let rightIndex = 0;
+
+    while (leftIndex < left.length && rightIndex < right.length) {
+      if (left[leftIndex] < right[rightIndex]) {
+        result.push(left[leftIndex]);
+        leftIndex++;
+      } else {
+        result.push(right[rightIndex]);
+        rightIndex++;
+      }
+      steps.push([...result, ...left.slice(leftIndex), ...right.slice(rightIndex)]);
+    }
+
+    while (leftIndex < left.length) {
+      result.push(left[leftIndex]);
+      leftIndex++;
+      steps.push([...result, ...right.slice(rightIndex)]);
+    }
+
+    while (rightIndex < right.length) {
+      result.push(right[rightIndex]);
+      rightIndex++;
+      steps.push([...result]);
+    }
+
+    return result;
+  };
+
+  const heapSort = (arr: number[]) => {
+    const steps: number[][] = [];
+    const sortedArray = [...arr];
+    const n = sortedArray.length;
+    steps.push([...sortedArray]);
+
+    // Build max heap
+    for (let i = Math.floor(n / 2) - 1; i >= 0; i--) {
+      heapify(sortedArray, n, i, steps);
+    }
+
+    // Extract elements from heap one by one
+    for (let i = n - 1; i > 0; i--) {
+      [sortedArray[0], sortedArray[i]] = [sortedArray[i], sortedArray[0]];
+      steps.push([...sortedArray]);
+      heapify(sortedArray, i, 0, steps);
+    }
+
+    return steps;
+  };
+
+  const heapify = (arr: number[], n: number, i: number, steps: number[][]) => {
+    let largest = i;
+    const left = 2 * i + 1;
+    const right = 2 * i + 2;
+
+    if (left < n && arr[left] > arr[largest]) {
+      largest = left;
+    }
+
+    if (right < n && arr[right] > arr[largest]) {
+      largest = right;
+    }
+
+    if (largest !== i) {
+      [arr[i], arr[largest]] = [arr[largest], arr[i]];
+      steps.push([...arr]);
+      heapify(arr, n, largest, steps);
+    }
+  };
+
   const handleInputSubmit = () => {
     const numbers = inputValue.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
     setArray(numbers);
@@ -76,6 +158,12 @@ const Sorting = () => {
       const arrayCopy = [...array];
       sortingSteps = [arrayCopy];
       quickSort(arrayCopy, 0, arrayCopy.length - 1, sortingSteps);
+    } else if (algorithm === "merge") {
+      const arrayCopy = [...array];
+      sortingSteps = [arrayCopy];
+      mergeSort(arrayCopy, sortingSteps);
+    } else if (algorithm === "heap") {
+      sortingSteps = heapSort(array);
     }
 
     setSteps(sortingSteps);
@@ -93,7 +181,43 @@ const Sorting = () => {
     }, 800);
   };
 
+  const getAlgorithmDescription = () => {
+    switch (algorithm) {
+      case "bubble":
+        return {
+          name: "Bubble Sort",
+          description: "Repeatedly steps through the list, compares adjacent elements and swaps them if they're in the wrong order.",
+          complexity: "O(n²)",
+          characteristics: ["Simple implementation", "Stable sorting", "In-place algorithm", "Poor performance on large datasets"]
+        };
+      case "quick":
+        return {
+          name: "Quick Sort",
+          description: "Divides the array into smaller sub-arrays using a pivot element, then recursively sorts the sub-arrays.",
+          complexity: "O(n log n) average, O(n²) worst case",
+          characteristics: ["Divide and conquer approach", "In-place algorithm", "Not stable", "Excellent average performance"]
+        };
+      case "merge":
+        return {
+          name: "Merge Sort",
+          description: "Divides the array into halves, recursively sorts them, then merges the sorted halves back together.",
+          complexity: "O(n log n)",
+          characteristics: ["Divide and conquer approach", "Stable sorting", "Requires additional space", "Guaranteed O(n log n) performance"]
+        };
+      case "heap":
+        return {
+          name: "Heap Sort",
+          description: "Builds a max heap from the array, then repeatedly extracts the maximum element to create a sorted array.",
+          complexity: "O(n log n)",
+          characteristics: ["Uses heap data structure", "In-place algorithm", "Not stable", "Consistent performance"]
+        };
+      default:
+        return null;
+    }
+  };
+
   const currentArray = steps.length > 0 ? steps[currentStep] : array;
+  const algorithmInfo = getAlgorithmDescription();
 
   return (
     <div className="min-h-screen bg-white text-black p-8">
@@ -108,6 +232,28 @@ const Sorting = () => {
             Back to Home
           </Link>
         </div>
+
+        {/* Algorithm Information */}
+        {algorithmInfo && (
+          <div className="border-2 border-black rounded-lg p-6 mb-8">
+            <h2 className="text-2xl font-bold mb-4">{algorithmInfo.name}</h2>
+            <p className="text-gray-700 mb-4">{algorithmInfo.description}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-bold mb-2">Time Complexity:</h3>
+                <p className="text-gray-600">{algorithmInfo.complexity}</p>
+              </div>
+              <div>
+                <h3 className="font-bold mb-2">Characteristics:</h3>
+                <ul className="text-gray-600 space-y-1">
+                  {algorithmInfo.characteristics.map((char, index) => (
+                    <li key={index}>• {char}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Input Section */}
@@ -145,6 +291,8 @@ const Sorting = () => {
                   <SelectContent className="bg-white border-black">
                     <SelectItem value="bubble">Bubble Sort</SelectItem>
                     <SelectItem value="quick">Quick Sort</SelectItem>
+                    <SelectItem value="merge">Merge Sort</SelectItem>
+                    <SelectItem value="heap">Heap Sort</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -155,6 +303,14 @@ const Sorting = () => {
                 className="w-full bg-black text-white hover:bg-gray-800 disabled:bg-gray-400"
               >
                 {isVisualizing ? "Visualizing..." : "Start Visualization"}
+              </Button>
+
+              <Button
+                onClick={() => setInputValue("64, 34, 25, 12, 22, 11, 90")}
+                variant="outline"
+                className="w-full border-black hover:bg-gray-100"
+              >
+                Load Sample Data
               </Button>
             </div>
           </div>
@@ -194,6 +350,33 @@ const Sorting = () => {
                 Enter an array to visualize sorting
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Sorting Algorithms Overview */}
+        <div className="border-2 border-black rounded-lg p-6 mt-8">
+          <h2 className="text-2xl font-bold mb-4">Sorting Algorithms Overview</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="space-y-2">
+              <h3 className="font-bold text-lg">Bubble Sort</h3>
+              <p className="text-sm text-gray-600">Simple comparison-based algorithm that repeatedly swaps adjacent elements.</p>
+              <p className="text-xs"><strong>Best for:</strong> Learning purposes, small datasets</p>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-bold text-lg">Quick Sort</h3>
+              <p className="text-sm text-gray-600">Efficient divide-and-conquer algorithm using pivot partitioning.</p>
+              <p className="text-xs"><strong>Best for:</strong> General-purpose sorting, large datasets</p>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-bold text-lg">Merge Sort</h3>
+              <p className="text-sm text-gray-600">Stable divide-and-conquer algorithm with guaranteed O(n log n) performance.</p>
+              <p className="text-xs"><strong>Best for:</strong> Stable sorting, linked lists</p>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-bold text-lg">Heap Sort</h3>
+              <p className="text-sm text-gray-600">Uses binary heap data structure for efficient in-place sorting.</p>
+              <p className="text-xs"><strong>Best for:</strong> Memory-constrained environments</p>
+            </div>
           </div>
         </div>
       </motion.div>

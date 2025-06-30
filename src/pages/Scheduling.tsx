@@ -5,12 +5,17 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Process {
   id: string;
   arrivalTime: number;
   burstTime: number;
   priority?: number;
+}
+
+interface ProcessWithRemaining extends Process {
+  remainingTime: number;
 }
 
 interface GanttSegment {
@@ -20,12 +25,23 @@ interface GanttSegment {
   isIdle?: boolean;
 }
 
+interface Metrics {
+  averageWaitingTime: number;
+  averageTurnaroundTime: number;
+  processMetrics: Array<{
+    id: string;
+    waitingTime: number;
+    turnaroundTime: number;
+  }>;
+}
+
 const Scheduling = () => {
   const [processes, setProcesses] = useState<Process[]>([]);
   const [algorithm, setAlgorithm] = useState("");
   const [timeQuantum, setTimeQuantum] = useState(2);
   const [ganttChart, setGanttChart] = useState<GanttSegment[]>([]);
-  const [metrics, setMetrics] = useState<any>({});
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [dynamicPriority, setDynamicPriority] = useState(false);
 
   const addProcess = () => {
     const newProcess: Process = {
@@ -43,13 +59,48 @@ const Scheduling = () => {
     setProcesses(updated);
   };
 
+  const removeProcess = (index: number) => {
+    setProcesses(processes.filter((_, i) => i !== index));
+  };
+
+  const resetProcesses = () => {
+    setProcesses([]);
+    setGanttChart([]);
+    setMetrics(null);
+  };
+
+  const calculateMetrics = (gantt: GanttSegment[], processes: Process[]) => {
+    const processMetrics = processes.map(process => {
+      const completionTime = Math.max(...gantt
+        .filter(segment => segment.processId === process.id)
+        .map(segment => segment.endTime));
+      
+      const turnaroundTime = completionTime - process.arrivalTime;
+      const waitingTime = turnaroundTime - process.burstTime;
+
+      return {
+        id: process.id,
+        waitingTime,
+        turnaroundTime
+      };
+    });
+
+    const averageWaitingTime = processMetrics.reduce((sum, p) => sum + p.waitingTime, 0) / processes.length;
+    const averageTurnaroundTime = processMetrics.reduce((sum, p) => sum + p.turnaroundTime, 0) / processes.length;
+
+    return {
+      averageWaitingTime,
+      averageTurnaroundTime,
+      processMetrics
+    };
+  };
+
   const fcfsScheduling = (processes: Process[]) => {
     const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
     const gantt: GanttSegment[] = [];
     let currentTime = 0;
 
     sortedProcesses.forEach(process => {
-      // Add idle time if there's a gap
       if (currentTime < process.arrivalTime) {
         gantt.push({
           processId: "IDLE",
@@ -73,7 +124,7 @@ const Scheduling = () => {
 
   const sjfScheduling = (processes: Process[]) => {
     const gantt: GanttSegment[] = [];
-    const remaining = processes.map(p => ({ ...p, remainingTime: p.burstTime }));
+    const remaining: ProcessWithRemaining[] = processes.map(p => ({ ...p, remainingTime: p.burstTime }));
     let currentTime = 0;
     const completed: string[] = [];
 
@@ -83,7 +134,6 @@ const Scheduling = () => {
       );
 
       if (available.length === 0) {
-        // Find next arrival time
         const nextArrival = Math.min(...remaining
           .filter(p => !completed.includes(p.id))
           .map(p => p.arrivalTime)
@@ -118,12 +168,11 @@ const Scheduling = () => {
 
   const roundRobinScheduling = (processes: Process[]) => {
     const gantt: GanttSegment[] = [];
-    const queue: Process[] = [];
-    const remaining = processes.map(p => ({ ...p, remainingTime: p.burstTime }));
+    const queue: ProcessWithRemaining[] = [];
+    const remaining: ProcessWithRemaining[] = processes.map(p => ({ ...p, remainingTime: p.burstTime }));
     let currentTime = 0;
     let i = 0;
 
-    // Add first process
     if (remaining.length > 0) {
       queue.push(remaining[0]);
       i = 1;
@@ -142,18 +191,15 @@ const Scheduling = () => {
       currentTime += executeTime;
       current.remainingTime -= executeTime;
 
-      // Add newly arrived processes
       while (i < remaining.length && remaining[i].arrivalTime <= currentTime) {
         queue.push(remaining[i]);
         i++;
       }
 
-      // Re-add current process if not finished
       if (current.remainingTime > 0) {
         queue.push(current);
       }
 
-      // Handle idle time
       if (queue.length === 0 && i < remaining.length) {
         const nextArrival = remaining[i].arrivalTime;
         gantt.push({
@@ -189,6 +235,7 @@ const Scheduling = () => {
     }
 
     setGanttChart(gantt);
+    setMetrics(calculateMetrics(gantt, processes));
   };
 
   return (
@@ -205,6 +252,82 @@ const Scheduling = () => {
           </Link>
         </div>
 
+        {/* Algorithm Selection Tabs */}
+        <div className="flex border-2 border-black rounded-lg mb-8">
+          <button
+            onClick={() => setAlgorithm("fcfs")}
+            className={`flex-1 py-3 px-4 font-medium ${
+              algorithm === "fcfs" ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"
+            }`}
+          >
+            FCFS
+          </button>
+          <button
+            onClick={() => setAlgorithm("sjf")}
+            className={`flex-1 py-3 px-4 font-medium border-l border-r border-black ${
+              algorithm === "sjf" ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"
+            }`}
+          >
+            SJF
+          </button>
+          <button
+            onClick={() => setAlgorithm("rr")}
+            className={`flex-1 py-3 px-4 font-medium ${
+              algorithm === "rr" ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"
+            }`}
+          >
+            Round Robin
+          </button>
+        </div>
+
+        {/* Algorithm Description */}
+        {algorithm && (
+          <div className="border-2 border-black rounded-lg p-6 mb-8">
+            <h2 className="text-2xl font-bold mb-4">
+              {algorithm === "fcfs" && "FCFS (First Come First Serve) Scheduler"}
+              {algorithm === "sjf" && "SJF (Shortest Job First) Scheduler"}
+              {algorithm === "rr" && "Round Robin Scheduler"}
+            </h2>
+            
+            {algorithm === "fcfs" && (
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Checkbox 
+                    id="dynamic-priority" 
+                    checked={dynamicPriority}
+                    onCheckedChange={setDynamicPriority}
+                  />
+                  <label htmlFor="dynamic-priority" className="text-sm font-medium">
+                    Enable Dynamic Priority Scheduling
+                  </label>
+                </div>
+                <p>• Processes are executed in the order they arrive</p>
+                <p>• Simple and fair scheduling algorithm</p>
+                <p>• Can cause "convoy effect" with long processes</p>
+                <p>• Non-preemptive scheduling</p>
+              </div>
+            )}
+            
+            {algorithm === "sjf" && (
+              <div className="space-y-2">
+                <p>• Processes with shortest burst time are executed first</p>
+                <p>• Optimal for minimizing average waiting time</p>
+                <p>• Can cause starvation for longer processes</p>
+                <p>• Non-preemptive scheduling</p>
+              </div>
+            )}
+            
+            {algorithm === "rr" && (
+              <div className="space-y-2">
+                <p>• Each process gets equal time quantum for execution</p>
+                <p>• Fair scheduling algorithm for time-sharing systems</p>
+                <p>• Preemptive scheduling with time slicing</p>
+                <p>• Performance depends on time quantum selection</p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Input Section */}
           <div className="space-y-6">
@@ -212,17 +335,6 @@ const Scheduling = () => {
               <h2 className="text-2xl font-bold mb-4">Process Configuration</h2>
               
               <div className="space-y-4">
-                <Select value={algorithm} onValueChange={setAlgorithm}>
-                  <SelectTrigger className="border-black">
-                    <SelectValue placeholder="Select scheduling algorithm" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-black">
-                    <SelectItem value="fcfs">First Come First Serve (FCFS)</SelectItem>
-                    <SelectItem value="sjf">Shortest Job First (SJF)</SelectItem>
-                    <SelectItem value="rr">Round Robin (RR)</SelectItem>
-                  </SelectContent>
-                </Select>
-
                 {algorithm === "rr" && (
                   <div>
                     <label className="block text-sm font-medium mb-2">Time Quantum:</label>
@@ -236,9 +348,36 @@ const Scheduling = () => {
                   </div>
                 )}
 
-                <Button onClick={addProcess} className="w-full bg-black text-white hover:bg-gray-800">
-                  Add Process
-                </Button>
+                <div className="grid grid-cols-3 gap-2">
+                  <Input
+                    placeholder="Process Name (e.g., P1)"
+                    className="border-black"
+                    id="process-name"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Arrival Time"
+                    className="border-black"
+                    id="arrival-time"
+                    min="0"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Burst Time"
+                    className="border-black"
+                    id="burst-time"
+                    min="1"
+                  />
+                </div>
+
+                <div className="flex space-x-2">
+                  <Button onClick={addProcess} className="flex-1 bg-black text-white hover:bg-gray-800">
+                    Add Process
+                  </Button>
+                  <Button onClick={resetProcesses} variant="outline" className="border-black hover:bg-gray-100">
+                    Reset
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -247,9 +386,13 @@ const Scheduling = () => {
               <h3 className="text-xl font-bold mb-4">Processes</h3>
               <div className="space-y-4 max-h-64 overflow-y-auto">
                 {processes.map((process, index) => (
-                  <div key={process.id} className="grid grid-cols-3 gap-2 p-3 border border-gray-300 rounded">
+                  <div key={process.id} className="grid grid-cols-4 gap-2 p-3 border border-gray-300 rounded">
                     <div>
-                      <label className="text-xs font-medium">Arrival Time</label>
+                      <label className="text-xs font-medium">Process</label>
+                      <div className="text-sm font-bold">{process.id}</div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">Arrival</label>
                       <Input
                         type="number"
                         value={process.arrivalTime}
@@ -259,7 +402,7 @@ const Scheduling = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-medium">Burst Time</label>
+                      <label className="text-xs font-medium">Burst</label>
                       <Input
                         type="number"
                         value={process.burstTime}
@@ -269,7 +412,14 @@ const Scheduling = () => {
                       />
                     </div>
                     <div className="flex items-end">
-                      <span className="text-sm font-medium">{process.id}</span>
+                      <Button
+                        onClick={() => removeProcess(index)}
+                        variant="outline"
+                        size="sm"
+                        className="border-red-500 text-red-500 hover:bg-red-50"
+                      >
+                        Remove
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -280,68 +430,86 @@ const Scheduling = () => {
                 disabled={processes.length === 0 || !algorithm}
                 className="w-full mt-4 bg-black text-white hover:bg-gray-800 disabled:bg-gray-400"
               >
-                Run Scheduling
+                Start Simulation
               </Button>
             </div>
           </div>
 
-          {/* Gantt Chart */}
-          <div className="border-2 border-black rounded-lg p-6">
-            <h2 className="text-2xl font-bold mb-4">Gantt Chart</h2>
-            
-            {ganttChart.length > 0 ? (
-              <div className="space-y-4">
-                <div className="flex items-center space-x-1 overflow-x-auto pb-2">
-                  {ganttChart.map((segment, index) => (
-                    <motion.div
-                      key={index}
-                      className={`min-w-[60px] h-12 flex items-center justify-center text-xs font-medium border-2 border-black ${
-                        segment.isIdle ? 'bg-gray-200 text-gray-600' : 'bg-black text-white'
-                      }`}
-                      style={{ width: `${(segment.endTime - segment.startTime) * 40}px` }}
-                      initial={{ scaleX: 0 }}
-                      animate={{ scaleX: 1 }}
-                      transition={{ duration: 0.5, delay: index * 0.1 }}
-                    >
-                      {segment.processId}
-                    </motion.div>
-                  ))}
-                </div>
-                
-                <div className="flex items-center space-x-1 overflow-x-auto">
-                  {ganttChart.map((segment, index) => (
-                    <div
-                      key={index}
-                      className="min-w-[60px] text-xs text-center"
-                      style={{ width: `${(segment.endTime - segment.startTime) * 40}px` }}
-                    >
+          {/* Results Section */}
+          <div className="space-y-6">
+            {/* Gantt Chart */}
+            <div className="border-2 border-black rounded-lg p-6">
+              <h2 className="text-2xl font-bold mb-4">Gantt Chart</h2>
+              
+              {ganttChart.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-1 overflow-x-auto pb-2">
+                    {ganttChart.map((segment, index) => (
+                      <motion.div
+                        key={index}
+                        className={`min-w-[60px] h-12 flex items-center justify-center text-xs font-medium border-2 border-black ${
+                          segment.isIdle ? 'bg-gray-200 text-gray-600' : 'bg-black text-white'
+                        }`}
+                        style={{ width: `${(segment.endTime - segment.startTime) * 40}px` }}
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: 1 }}
+                        transition={{ duration: 0.5, delay: index * 0.1 }}
+                      >
+                        {segment.processId}
+                      </motion.div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex items-center space-x-1 overflow-x-auto">
+                    {ganttChart.map((segment, index) => (
+                      <div
+                        key={index}
+                        className="min-w-[60px] text-xs text-center"
+                        style={{ width: `${(segment.endTime - segment.startTime) * 40}px` }}
+                      >
+                        <div className="border-l border-black h-2"></div>
+                        <span>{segment.startTime}</span>
+                      </div>
+                    ))}
+                    <div className="text-xs">
                       <div className="border-l border-black h-2"></div>
-                      <span>{segment.startTime}</span>
+                      <span>{ganttChart[ganttChart.length - 1]?.endTime}</span>
                     </div>
-                  ))}
-                  <div className="text-xs">
-                    <div className="border-l border-black h-2"></div>
-                    <span>{ganttChart[ganttChart.length - 1]?.endTime}</span>
                   </div>
                 </div>
-
-                <div className="text-sm space-y-2">
-                  <h4 className="font-bold">Timeline:</h4>
-                  {ganttChart.map((segment, index) => (
-                    <div key={index} className="flex justify-between">
-                      <span className={segment.isIdle ? 'text-gray-600' : ''}>
-                        {segment.processId}: {segment.startTime} - {segment.endTime}
-                      </span>
-                      <span className="text-gray-600">
-                        Duration: {segment.endTime - segment.startTime}
-                      </span>
-                    </div>
-                  ))}
+              ) : (
+                <div className="flex items-center justify-center h-32 text-gray-500">
+                  Configure processes and run scheduling to see Gantt chart
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-64 text-gray-500">
-                Configure processes and run scheduling to see Gantt chart
+              )}
+            </div>
+
+            {/* Metrics */}
+            {metrics && (
+              <div className="border-2 border-black rounded-lg p-6">
+                <h3 className="text-xl font-bold mb-4">Performance Metrics</h3>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-3 border border-gray-300 rounded">
+                      <div className="text-2xl font-bold">{metrics.averageWaitingTime.toFixed(2)}</div>
+                      <div className="text-sm text-gray-600">Average Waiting Time</div>
+                    </div>
+                    <div className="text-center p-3 border border-gray-300 rounded">
+                      <div className="text-2xl font-bold">{metrics.averageTurnaroundTime.toFixed(2)}</div>
+                      <div className="text-sm text-gray-600">Average Turnaround Time</div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Individual Process Metrics:</h4>
+                    {metrics.processMetrics.map(process => (
+                      <div key={process.id} className="flex justify-between text-sm">
+                        <span>{process.id}:</span>
+                        <span>WT: {process.waitingTime}, TAT: {process.turnaroundTime}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
