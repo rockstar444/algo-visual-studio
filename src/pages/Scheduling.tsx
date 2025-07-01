@@ -95,7 +95,21 @@ const Scheduling = () => {
   };
 
   const fcfsScheduling = (processes: Process[]) => {
-    const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
+    let sortedProcesses;
+    
+    if (dynamicPriority) {
+      // Sort by priority (lower number = higher priority), then by arrival time
+      sortedProcesses = [...processes].sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return (a.priority || 0) - (b.priority || 0);
+        }
+        return a.arrivalTime - b.arrivalTime;
+      });
+    } else {
+      // Original FCFS: sort by arrival time
+      sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
+    }
+
     const gantt: GanttSegment[] = [];
     let currentTime = 0;
 
@@ -303,13 +317,24 @@ const Scheduling = () => {
                     onCheckedChange={handleDynamicPriorityChange}
                   />
                   <label htmlFor="dynamic-priority" className="text-sm font-medium">
-                    Dynamic Priority (aging)
+                    Dynamic Priority (Custom execution order)
                   </label>
                 </div>
-                <p>• Processes are executed in the order they arrive</p>
-                <p>• Simple and fair scheduling algorithm</p>
-                <p>• Can cause "convoy effect" with long processes</p>
-                <p>• Non-preemptive scheduling</p>
+                {dynamicPriority ? (
+                  <div className="space-y-2">
+                    <p>• Processes are executed based on custom priority values</p>
+                    <p>• Lower priority numbers execute first (Priority 1 before Priority 2)</p>
+                    <p>• Set priority values for each process to control execution order</p>
+                    <p>• Processes with same priority are ordered by arrival time</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p>• Processes are executed in the order they arrive</p>
+                    <p>• Simple and fair scheduling algorithm</p>
+                    <p>• Can cause "convoy effect" with long processes</p>
+                    <p>• Non-preemptive scheduling</p>
+                  </div>
+                )}
               </div>
             )}
             
@@ -353,7 +378,7 @@ const Scheduling = () => {
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className={`grid gap-2 ${algorithm === "fcfs" && dynamicPriority ? 'grid-cols-4' : 'grid-cols-3'}`}>
                   <Input
                     placeholder="Process Name (e.g., P1)"
                     className="border-black"
@@ -373,6 +398,15 @@ const Scheduling = () => {
                     id="burst-time"
                     min="1"
                   />
+                  {algorithm === "fcfs" && dynamicPriority && (
+                    <Input
+                      type="number"
+                      placeholder="Priority"
+                      className="border-black"
+                      id="priority"
+                      min="1"
+                    />
+                  )}
                 </div>
 
                 <div className="flex space-x-2">
@@ -391,7 +425,7 @@ const Scheduling = () => {
               <h3 className="text-xl font-bold mb-4">Processes</h3>
               <div className="space-y-4 max-h-64 overflow-y-auto">
                 {processes.map((process, index) => (
-                  <div key={process.id} className="grid grid-cols-4 gap-2 p-3 border border-gray-300 rounded">
+                  <div key={process.id} className={`grid gap-2 p-3 border border-gray-300 rounded ${algorithm === "fcfs" && dynamicPriority ? 'grid-cols-5' : 'grid-cols-4'}`}>
                     <div>
                       <label className="text-xs font-medium">Process</label>
                       <div className="text-sm font-bold">{process.id}</div>
@@ -416,6 +450,18 @@ const Scheduling = () => {
                         min="1"
                       />
                     </div>
+                    {algorithm === "fcfs" && dynamicPriority && (
+                      <div>
+                        <label className="text-xs font-medium">Priority</label>
+                        <Input
+                          type="number"
+                          value={process.priority || 1}
+                          onChange={(e) => updateProcess(index, 'priority', parseInt(e.target.value))}
+                          className="border-black h-8"
+                          min="1"
+                        />
+                      </div>
+                    )}
                     <div className="flex items-end">
                       <Button
                         onClick={() => removeProcess(index)}
